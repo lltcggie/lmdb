@@ -4664,6 +4664,10 @@ static void ESECT
 mdb_env_close0(MDB_env *env, int excl)
 {
 	int i;
+#ifdef WIN32
+	FILE_SET_SPARSE_BUFFER fssb;
+	DWORD actual;
+#endif
 
 	if (!(env->me_flags & MDB_ENV_ACTIVE))
 		return;
@@ -4700,12 +4704,16 @@ mdb_env_close0(MDB_env *env, int excl)
 		munmap(env->me_map, env->me_mapsize);
 	}
 #ifdef _WIN32
-	LARGE_INTEGER liCurrentPosition = { 1024*1024 };//add 1MB free space
-	SetFilePointerEx(env->me_fd, liCurrentPosition,
-		&liCurrentPosition, FILE_CURRENT);
+	//LARGE_INTEGER liCurrentPosition = { 1024*1024 };//add 1MB free space
+	//SetFilePointerEx(env->me_fd, liCurrentPosition,
+	//	&liCurrentPosition, FILE_CURRENT);
 	//printf("current pointer:%ld", liCurrentPosition.LowPart);
 	if (!SetEndOfFile(env->me_fd))
 		printf("set end of file error!\n");
+	
+	fssb.SetSparse = FALSE;
+	DeviceIoControl(env->me_fd, FSCTL_SET_SPARSE, &fssb,
+		sizeof(FILE_SET_SPARSE_BUFFER), NULL, 0, &actual, NULL);
 #endif
 	if (env->me_mfd != env->me_fd && env->me_mfd != INVALID_HANDLE_VALUE)
 		(void) close(env->me_mfd);
