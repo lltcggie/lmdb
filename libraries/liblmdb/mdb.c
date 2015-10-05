@@ -4579,6 +4579,14 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 	mode = FILE_ATTRIBUTE_NORMAL;
 	env->me_fd = CreateFile(dpath, oflags, FILE_SHARE_READ|FILE_SHARE_WRITE,
 		NULL, len, mode, NULL);
+	DWORD dwTemp;
+	if (!F_ISSET(flags, MDB_RDONLY)) {
+		if (!DeviceIoControl(env->me_fd, FSCTL_SET_SPARSE, NULL, 0,
+			NULL, 0, &dwTemp, NULL)) {
+				rc = ErrCode();
+				//goto leave;
+			}
+	}
 #else
 	if (F_ISSET(flags, MDB_RDONLY))
 		oflags = O_RDONLY;
@@ -4660,6 +4668,10 @@ static void ESECT
 mdb_env_close0(MDB_env *env, int excl)
 {
 	int i;
+#ifdef WIN32
+	FILE_SET_SPARSE_BUFFER fssb;
+	DWORD actual;
+#endif
 
 	if (!(env->me_flags & MDB_ENV_ACTIVE))
 		return;
@@ -4695,6 +4707,18 @@ mdb_env_close0(MDB_env *env, int excl)
 	if (env->me_map) {
 		munmap(env->me_map, env->me_mapsize);
 	}
+#ifdef _WIN32
+	//LARGE_INTEGER liCurrentPosition = { 1024*1024 };//add 1MB free space
+	//SetFilePointerEx(env->me_fd, liCurrentPosition,
+	//	&liCurrentPosition, FILE_CURRENT);
+	//printf("current pointer:%ld", liCurrentPosition.LowPart);
+	if (!SetEndOfFile(env->me_fd))
+		printf("set end of file error!\n");
+	
+	fssb.SetSparse = FALSE;
+	DeviceIoControl(env->me_fd, FSCTL_SET_SPARSE, &fssb,
+		sizeof(FILE_SET_SPARSE_BUFFER), NULL, 0, &actual, NULL);
+#endif
 	if (env->me_mfd != env->me_fd && env->me_mfd != INVALID_HANDLE_VALUE)
 		(void) close(env->me_mfd);
 	if (env->me_fd != INVALID_HANDLE_VALUE)
