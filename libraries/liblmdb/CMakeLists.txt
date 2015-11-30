@@ -12,8 +12,25 @@ set(LMDB_VERSION "${LMDB_MAJOR_VERSION}.${LMDB_MINOR_VERSION}.${LMDB_PATCH_VERSI
 
 project(lmdb)
 
+option(BUILD_WITH_STATIC_CRT "Use CRT Static Runtime Library on Visual Studio" OFF)
+
 add_library(lmdb STATIC mdb.c lmdb.h midl.c midl.h)
 set_target_properties(lmdb PROPERTIES DEBUG_POSTFIX d)
+
+if(MSVC AND BUILD_WITH_STATIC_CRT)
+    foreach(flag_var
+            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+            CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        if(${flag_var} MATCHES "/MD")
+            string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+        endif(${flag_var} MATCHES "/MD")
+        if(${flag_var} MATCHES "/MDd")
+            string(REGEX REPLACE "/MDd" "/MTd" ${flag_var} "${${flag_var}}")
+        endif(${flag_var} MATCHES "/MDd")
+    endforeach(flag_var)
+endif()
 
 install(TARGETS lmdb 
         EXPORT lmdb-targets
